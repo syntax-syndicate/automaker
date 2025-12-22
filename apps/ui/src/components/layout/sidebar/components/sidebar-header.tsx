@@ -1,10 +1,7 @@
 import type { NavigateOptions } from '@tanstack/react-router';
-import { cn } from '@/lib/utils';
+import { cn, isMac } from '@/lib/utils';
 import { AutomakerLogo } from './automaker-logo';
 import { BugReportButton } from './bug-report-button';
-
-// Detect if running on macOS for traffic light button spacing
-const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent);
 
 interface SidebarHeaderProps {
   sidebarOpen: boolean;
