@@ -24,6 +24,7 @@ import type {
   GitHubAPI,
   GitHubIssue,
   GitHubPR,
+  IssueValidationInput,
 } from './electron';
 import type { Message, SessionListItem } from '@/types/electron';
 import type { Feature, ClaudeUsageResponse } from '@/store/app-store';
@@ -751,6 +752,8 @@ export class HttpApiClient implements ElectronAPI {
     checkRemote: (projectPath: string) => this.post('/api/github/check-remote', { projectPath }),
     listIssues: (projectPath: string) => this.post('/api/github/issues', { projectPath }),
     listPRs: (projectPath: string) => this.post('/api/github/prs', { projectPath }),
+    validateIssue: (projectPath: string, issue: IssueValidationInput) =>
+      this.post('/api/github/validate-issue', { projectPath, ...issue }),
   };
 
   // Workspace API

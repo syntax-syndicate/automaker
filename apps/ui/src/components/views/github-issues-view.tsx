@@ -1,10 +1,43 @@
 import { useState, useEffect, useCallback } from 'react';
-import { CircleDot, Loader2, RefreshCw, ExternalLink, CheckCircle2, Circle, X } from 'lucide-react';
-import { getElectronAPI, GitHubIssue } from '@/lib/electron';
+import {
+  CircleDot,
+  Loader2,
+  RefreshCw,
+  ExternalLink,
+  CheckCircle2,
+  Circle,
+  X,
+  Wand2,
+} from 'lucide-react';
+import {
+  getElectronAPI,
+  GitHubIssue,
+  IssueValidationResult,
+  IssueComplexity,
+} from '@/lib/electron';
+
+/**
+ * Map issue complexity to feature priority.
+ * Lower complexity issues get higher priority (1 = high, 2 = medium).
+ */
+function getFeaturePriority(complexity: IssueComplexity | undefined): number {
+  switch (complexity) {
+    case 'trivial':
+    case 'simple':
+      return 1; // High priority for easy wins
+    case 'moderate':
+    case 'complex':
+    case 'very_complex':
+    default:
+      return 2; // Medium priority for larger efforts
+  }
+}
 import { useAppStore } from '@/store/app-store';
 import { Button } from '@/components/ui/button';
 import { Markdown } from '@/components/ui/markdown';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { ValidationDialog } from './github-issues-view/validation-dialog';
 
 export function GitHubIssuesView() {
   const [openIssues, setOpenIssues] = useState<GitHubIssue[]>([]);
@@ -13,6 +46,9 @@ export function GitHubIssuesView() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<GitHubIssue | null>(null);
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<IssueValidationResult | null>(null);
+  const [showValidationDialog, setShowValidationDialog] = useState(false);
   const { currentProject } = useAppStore();
 
   const fetchIssues = useCallback(async () => {
@@ -56,6 +92,103 @@ export function GitHubIssuesView() {
     const api = getElectronAPI();
     api.openExternalLink(url);
   }, []);
+
+  const handleValidateIssue = useCallback(
+    async (issue: GitHubIssue) => {
+      if (!currentProject?.path) {
+        toast.error('No project selected');
+        return;
+      }
+
+      setValidating(true);
+      setValidationResult(null);
+      setShowValidationDialog(true);
+
+      try {
+        const api = getElectronAPI();
+        if (api.github?.validateIssue) {
+          const result = await api.github.validateIssue(currentProject.path, {
+            issueNumber: issue.number,
+            issueTitle: issue.title,
+            issueBody: issue.body || '',
+            issueLabels: issue.labels.map((l) => l.name),
+          });
+
+          if (result.success) {
+            setValidationResult(result.validation);
+          } else {
+            toast.error(result.error || 'Failed to validate issue');
+            setShowValidationDialog(false);
+          }
+        }
+      } catch (err) {
+        console.error('[GitHubIssuesView] Validation error:', err);
+        toast.error(err instanceof Error ? err.message : 'Failed to validate issue');
+        setShowValidationDialog(false);
+      } finally {
+        setValidating(false);
+      }
+    },
+    [currentProject?.path]
+  );
+
+  const handleConvertToTask = useCallback(
+    async (issue: GitHubIssue, validation: IssueValidationResult) => {
+      if (!currentProject?.path) {
+        toast.error('No project selected');
+        return;
+      }
+
+      try {
+        const api = getElectronAPI();
+        if (api.features?.create) {
+          // Build description from issue body + validation info
+          const description = [
+            `**From GitHub Issue #${issue.number}**`,
+            '',
+            issue.body || 'No description provided.',
+            '',
+            '---',
+            '',
+            '**AI Validation Analysis:**',
+            validation.reasoning,
+            validation.suggestedFix ? `\n**Suggested Approach:**\n${validation.suggestedFix}` : '',
+            validation.relatedFiles?.length
+              ? `\n**Related Files:**\n${validation.relatedFiles.map((f) => `- \`${f}\``).join('\n')}`
+              : '',
+          ]
+            .filter(Boolean)
+            .join('\n');
+
+          const feature = {
+            id: `issue-${issue.number}-${crypto.randomUUID()}`,
+            title: issue.title,
+            description,
+            category: 'From GitHub',
+            status: 'backlog' as const,
+            passes: false,
+            priority: getFeaturePriority(validation.estimatedComplexity),
+            model: 'opus' as const,
+            thinkingLevel: 'none' as const,
+            branchName: '',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          const result = await api.features.create(currentProject.path, feature);
+          if (result.success) {
+            toast.success(`Created task: ${issue.title}`);
+          } else {
+            toast.error(result.error || 'Failed to create task');
+          }
+        }
+      } catch (err) {
+        console.error('[GitHubIssuesView] Convert to task error:', err);
+        toast.error(err instanceof Error ? err.message : 'Failed to create task');
+      }
+    },
+    [currentProject?.path]
+  );
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -185,6 +318,19 @@ export function GitHubIssuesView() {
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <Button
+                variant="default"
+                size="sm"
+                onClick={() => handleValidateIssue(selectedIssue)}
+                disabled={validating}
+              >
+                {validating ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Wand2 className="h-4 w-4 mr-1" />
+                )}
+                Validate with AI
+              </Button>
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={() => handleOpenInGitHub(selectedIssue.url)}
@@ -260,6 +406,16 @@ export function GitHubIssuesView() {
           </div>
         </div>
       )}
+
+      {/* Validation Dialog */}
+      <ValidationDialog
+        open={showValidationDialog}
+        onOpenChange={setShowValidationDialog}
+        issue={selectedIssue}
+        validationResult={validationResult}
+        isValidating={validating}
+        onConvertToTask={handleConvertToTask}
+      />
     </div>
   );
 }

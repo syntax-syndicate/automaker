@@ -81,3 +81,15 @@ export {
   THINKING_LEVEL_LABELS,
   getModelDisplayName,
 } from './model-display.js';
+
+// Issue validation types
+export type {
+  IssueValidationVerdict,
+  IssueValidationConfidence,
+  IssueComplexity,
+  IssueValidationInput,
+  IssueValidationRequest,
+  IssueValidationResult,
+  IssueValidationResponse,
+  IssueValidationErrorResponse,
+} from './issue-validation.js';

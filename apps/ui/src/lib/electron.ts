@@ -1,7 +1,25 @@
 // Type definitions for Electron IPC API
 import type { SessionListItem, Message } from '@/types/electron';
 import type { ClaudeUsageResponse } from '@/store/app-store';
+import type {
+  IssueValidationVerdict,
+  IssueValidationConfidence,
+  IssueComplexity,
+  IssueValidationInput,
+  IssueValidationResult,
+  IssueValidationResponse,
+} from '@automaker/types';
 import { getJSON, setJSON, removeItem } from './storage';
+
+// Re-export issue validation types for use in components
+export type {
+  IssueValidationVerdict,
+  IssueValidationConfidence,
+  IssueComplexity,
+  IssueValidationInput,
+  IssueValidationResult,
+  IssueValidationResponse,
+};
 
 export interface FileEntry {
   name: string;
@@ -156,6 +174,10 @@ export interface GitHubAPI {
     mergedPRs?: GitHubPR[];
     error?: string;
   }>;
+  validateIssue: (
+    projectPath: string,
+    issue: IssueValidationInput
+  ) => Promise<IssueValidationResponse | { success: false; error: string }>;
 }
 
 // Feature Suggestions types
@@ -2629,6 +2651,22 @@ function createMockGitHubAPI(): GitHubAPI {
         success: true,
         openPRs: [],
         mergedPRs: [],
+      };
+    },
+    validateIssue: async (projectPath: string, issue: IssueValidationInput) => {
+      console.log('[Mock] Validating GitHub issue:', { projectPath, issue });
+      // Return a mock validation result
+      return {
+        success: true as const,
+        issueNumber: issue.issueNumber,
+        validation: {
+          verdict: 'valid' as const,
+          confidence: 'medium' as const,
+          reasoning:
+            'This is a mock validation. In production, Claude SDK would analyze the codebase to validate this issue.',
+          relatedFiles: ['src/components/example.tsx'],
+          estimatedComplexity: 'moderate' as const,
+        },
       };
     },
   };
