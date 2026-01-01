@@ -296,10 +296,10 @@ export function AgentOutputModal({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent
-        className="w-[60vw] max-w-[60vw] max-h-[80vh] flex flex-col"
+        className="w-[60vw] max-w-[60vw] max-h-[80vh] flex flex-col overflow-hidden min-h-0 gap-3"
         data-testid="agent-output-modal"
       >
-        <DialogHeader className="flex-shrink-0">
+        <DialogHeader className="shrink-0">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
               {featureStatus !== 'verified' && featureStatus !== 'waiting_approval' && (
@@ -347,7 +347,7 @@ export function AgentOutputModal({
             </div>
           </div>
           <DialogDescription
-            className="mt-1 max-h-24 overflow-y-auto break-words"
+            className="mt-1 max-h-24 overflow-y-auto wrap-break-word"
             data-testid="agent-output-description"
           >
             {featureDescription}
@@ -358,11 +358,12 @@ export function AgentOutputModal({
         <TaskProgressPanel
           featureId={featureId}
           projectPath={projectPath}
-          className="flex-shrink-0 mx-1"
+          className="shrink-0 rounded-lg"
+          defaultExpanded={false}
         />
 
         {viewMode === 'changes' ? (
-          <div className="flex-1 min-h-[400px] max-h-[60vh] overflow-y-auto scrollbar-visible">
+          <div className="flex-1 min-h-0 overflow-y-auto scrollbar-visible">
             {projectPath ? (
               <GitDiffPanel
                 projectPath={projectPath}
@@ -383,7 +384,7 @@ export function AgentOutputModal({
             <div
               ref={scrollRef}
               onScroll={handleScroll}
-              className="flex-1 overflow-y-auto bg-zinc-950 rounded-lg p-4 font-mono text-xs min-h-[400px] max-h-[60vh] scrollbar-visible"
+              className="flex-1 min-h-0 overflow-y-auto bg-zinc-950 rounded-lg p-4 font-mono text-xs scrollbar-visible"
             >
               {isLoading && !output ? (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -397,11 +398,11 @@ export function AgentOutputModal({
               ) : viewMode === 'parsed' ? (
                 <LogViewer output={output} />
               ) : (
-                <div className="whitespace-pre-wrap break-words text-zinc-300">{output}</div>
+                <div className="whitespace-pre-wrap wrap-break-word text-zinc-300">{output}</div>
               )}
             </div>
 
-            <div className="text-xs text-muted-foreground text-center flex-shrink-0">
+            <div className="text-xs text-muted-foreground text-center shrink-0">
               {autoScrollRef.current
                 ? 'Auto-scrolling enabled'
                 : 'Scroll to bottom to enable auto-scroll'}

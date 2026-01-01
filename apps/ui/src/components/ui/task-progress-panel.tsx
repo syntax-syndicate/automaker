@@ -19,11 +19,18 @@ interface TaskProgressPanelProps {
   featureId: string;
   projectPath?: string;
   className?: string;
+  /** Whether the panel starts expanded (default: true) */
+  defaultExpanded?: boolean;
 }
 
-export function TaskProgressPanel({ featureId, projectPath, className }: TaskProgressPanelProps) {
+export function TaskProgressPanel({
+  featureId,
+  projectPath,
+  className,
+  defaultExpanded = true,
+}: TaskProgressPanelProps) {
   const [tasks, setTasks] = useState<TaskInfo[]>([]);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
 
@@ -151,13 +158,13 @@ export function TaskProgressPanel({ featureId, projectPath, className }: TaskPro
   return (
     <div
       className={cn(
-        'group rounded-xl border bg-card/50 shadow-sm overflow-hidden transition-all duration-200',
+        'group rounded-lg border bg-card/50 shadow-sm overflow-hidden transition-all duration-200',
         className
       )}
     >
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between p-4 bg-muted/10 hover:bg-muted/20 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2.5 bg-muted/10 hover:bg-muted/20 transition-colors"
       >
         <div className="flex items-center gap-3">
           <div
@@ -218,9 +225,9 @@ export function TaskProgressPanel({ featureId, projectPath, className }: TaskPro
         )}
       >
         <div className="overflow-hidden">
-          <div className="p-5 pt-2 relative max-h-[300px] overflow-y-auto scrollbar-visible">
+          <div className="p-4 pt-2 relative max-h-[300px] overflow-y-auto scrollbar-visible">
             {/* Vertical Connector Line */}
-            <div className="absolute left-[2.35rem] top-4 bottom-8 w-px bg-gradient-to-b from-border/80 via-border/40 to-transparent" />
+            <div className="absolute left-[2.35rem] top-4 bottom-8 w-px bg-linear-to-b from-border/80 via-border/40 to-transparent" />
 
             <div className="space-y-5">
               {tasks.map((task, index) => {
