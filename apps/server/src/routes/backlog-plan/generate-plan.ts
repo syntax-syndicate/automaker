@@ -7,7 +7,7 @@
 
 import type { EventEmitter } from '../../lib/events.js';
 import type { Feature, BacklogPlanResult, BacklogChange, DependencyUpdate } from '@automaker/types';
-import { DEFAULT_PHASE_MODELS } from '@automaker/types';
+import { DEFAULT_PHASE_MODELS, isCursorModel } from '@automaker/types';
 import { FeatureLoader } from '../../services/feature-loader.js';
 import { ProviderFactory } from '../../providers/provider-factory.js';
 import { extractJsonWithArray } from '../../lib/json-extractor.js';
@@ -123,12 +123,32 @@ export async function generateBacklogPlan(
       '[BacklogPlan]'
     );
 
+    // For Cursor models, we need to combine prompts with explicit instructions
+    // because Cursor doesn't support systemPrompt separation like Claude SDK
+    let finalPrompt = userPrompt;
+    let finalSystemPrompt: string | undefined = systemPrompt;
+
+    if (isCursorModel(effectiveModel)) {
+      logger.info('[BacklogPlan] Using Cursor model - adding explicit no-file-write instructions');
+      finalPrompt = `${systemPrompt}
+
+CRITICAL INSTRUCTIONS:
+1. DO NOT write any files. Return the JSON in your response only.
+2. DO NOT use Write, Edit, or any file modification tools.
+3. Respond with ONLY a JSON object - no explanations, no markdown, just raw JSON.
+4. Your entire response should be valid JSON starting with { and ending with }.
+5. No text before or after the JSON object.
+
+${userPrompt}`;
+      finalSystemPrompt = undefined; // System prompt is now embedded in the user prompt
+    }
+
     // Execute the query
     const stream = provider.executeQuery({
-      prompt: userPrompt,
+      prompt: finalPrompt,
       model: effectiveModel,
       cwd: projectPath,
-      systemPrompt,
+      systemPrompt: finalSystemPrompt,
       maxTurns: 1,
       allowedTools: [], // No tools needed for this
       abortController,
