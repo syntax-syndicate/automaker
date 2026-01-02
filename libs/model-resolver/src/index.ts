@@ -13,4 +13,9 @@ export {
 } from '@automaker/types';
 
 // Export resolver functions
-export { resolveModelString, getEffectiveModel } from './resolver.js';
+export {
+  resolveModelString,
+  getEffectiveModel,
+  resolvePhaseModel,
+  type ResolvedPhaseModel,
+} from './resolver.js';

@@ -15,7 +15,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import { createLogger } from '@automaker/utils';
 import { DEFAULT_PHASE_MODELS, isCursorModel } from '@automaker/types';
 import { PathNotAllowedError } from '@automaker/platform';
-import { resolveModelString } from '@automaker/model-resolver';
+import { resolvePhaseModel } from '@automaker/model-resolver';
 import { createCustomOptions } from '../../../lib/sdk-options.js';
 import { ProviderFactory } from '../../../providers/provider-factory.js';
 import * as secureFs from '../../../lib/secure-fs.js';
@@ -182,11 +182,16 @@ File: ${fileName}${truncated ? ' (truncated)' : ''}`;
 
       // Get model from phase settings
       const settings = await settingsService?.getGlobalSettings();
-      const fileDescriptionModel =
+      logger.info(
+        `[DescribeFile] Raw phaseModels from settings:`,
+        JSON.stringify(settings?.phaseModels, null, 2)
+      );
+      const phaseModelEntry =
         settings?.phaseModels?.fileDescriptionModel || DEFAULT_PHASE_MODELS.fileDescriptionModel;
-      const model = resolveModelString(fileDescriptionModel);
+      logger.info(`[DescribeFile] fileDescriptionModel entry:`, JSON.stringify(phaseModelEntry));
+      const { model, thinkingLevel } = resolvePhaseModel(phaseModelEntry);
 
-      logger.debug(`[DescribeFile] Using model: ${model}`);
+      logger.info(`[DescribeFile] Resolved model: ${model}, thinkingLevel: ${thinkingLevel}`);
 
       let description: string;
 
@@ -231,6 +236,7 @@ File: ${fileName}${truncated ? ' (truncated)' : ''}`;
           allowedTools: [],
           autoLoadClaudeMd,
           sandbox: { enabled: true, autoAllowBashIfSandboxed: true },
+          thinkingLevel, // Pass thinking level for extended thinking
         });
 
         const promptGenerator = (async function* () {

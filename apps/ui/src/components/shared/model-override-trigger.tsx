@@ -4,9 +4,21 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAppStore } from '@/store/app-store';
-import type { ModelAlias, CursorModelId, PhaseModelKey } from '@automaker/types';
+import type { ModelAlias, CursorModelId, PhaseModelKey, PhaseModelEntry } from '@automaker/types';
 import { PROVIDER_PREFIXES, stripProviderPrefix } from '@automaker/types';
+
 import { CLAUDE_MODELS, CURSOR_MODELS } from '@/components/views/board-view/shared/model-constants';
+
+/**
+ * Extract model string from PhaseModelEntry or string
+ */
+function extractModel(entry: PhaseModelEntry | string | null): ModelAlias | CursorModelId | null {
+  if (!entry) return null;
+  if (typeof entry === 'string') {
+    return entry as ModelAlias | CursorModelId;
+  }
+  return entry.model;
+}
 
 export interface ModelOverrideTriggerProps {
   /** Current effective model (from global settings or explicit override) */
@@ -53,8 +65,8 @@ export function ModelOverrideTrigger({
   const [open, setOpen] = useState(false);
   const { phaseModels, enabledCursorModels } = useAppStore();
 
-  // Get the global default for this phase
-  const globalDefault = phase ? phaseModels[phase] : null;
+  // Get the global default for this phase (extract model string from PhaseModelEntry)
+  const globalDefault = phase ? extractModel(phaseModels[phase]) : null;
 
   // Filter Cursor models to only show enabled ones
   const availableCursorModels = CURSOR_MODELS.filter((model) => {

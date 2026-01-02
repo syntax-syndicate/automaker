@@ -7,7 +7,8 @@
 
 import type { EventEmitter } from '../../lib/events.js';
 import type { Feature, BacklogPlanResult, BacklogChange, DependencyUpdate } from '@automaker/types';
-import { DEFAULT_PHASE_MODELS, isCursorModel } from '@automaker/types';
+import { DEFAULT_PHASE_MODELS, isCursorModel, type ThinkingLevel } from '@automaker/types';
+import { resolvePhaseModel } from '@automaker/model-resolver';
 import { FeatureLoader } from '../../services/feature-loader.js';
 import { ProviderFactory } from '../../providers/provider-factory.js';
 import { extractJsonWithArray } from '../../lib/json-extractor.js';
@@ -107,10 +108,14 @@ export async function generateBacklogPlan(
 
     // Get the model to use from settings or provided override
     let effectiveModel = model;
+    let thinkingLevel: ThinkingLevel | undefined;
     if (!effectiveModel) {
       const settings = await settingsService?.getGlobalSettings();
-      effectiveModel =
+      const phaseModelEntry =
         settings?.phaseModels?.backlogPlanningModel || DEFAULT_PHASE_MODELS.backlogPlanningModel;
+      const resolved = resolvePhaseModel(phaseModelEntry);
+      effectiveModel = resolved.model;
+      thinkingLevel = resolved.thinkingLevel;
     }
     logger.info('[BacklogPlan] Using model:', effectiveModel);
 
@@ -154,6 +159,7 @@ ${userPrompt}`;
       abortController,
       settingSources: autoLoadClaudeMd ? ['user', 'project'] : undefined,
       readOnly: true, // Plan generation only generates text, doesn't write files
+      thinkingLevel, // Pass thinking level for extended thinking
     });
 
     let responseText = '';

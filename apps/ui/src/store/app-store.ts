@@ -10,6 +10,7 @@ import type {
   CursorModelId,
   PhaseModelConfig,
   PhaseModelKey,
+  PhaseModelEntry,
   MCPServerConfig,
   FeatureStatusWithPipeline,
   PipelineConfig,
@@ -786,7 +787,7 @@ export interface AppActions {
   setValidationModel: (model: ModelAlias) => void;
 
   // Phase Model actions
-  setPhaseModel: (phase: PhaseModelKey, model: ModelAlias | CursorModelId) => Promise<void>;
+  setPhaseModel: (phase: PhaseModelKey, entry: PhaseModelEntry) => Promise<void>;
   setPhaseModels: (models: Partial<PhaseModelConfig>) => Promise<void>;
   resetPhaseModels: () => Promise<void>;
   toggleFavoriteModel: (modelId: string) => void;
@@ -1652,11 +1653,11 @@ export const useAppStore = create<AppState & AppActions>()(
       setValidationModel: (model) => set({ validationModel: model }),
 
       // Phase Model actions
-      setPhaseModel: async (phase, model) => {
+      setPhaseModel: async (phase, entry) => {
         set((state) => ({
           phaseModels: {
             ...state.phaseModels,
-            [phase]: model,
+            [phase]: entry,
           },
         }));
         // Sync to server settings file

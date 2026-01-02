@@ -8,6 +8,7 @@
 import { query, type Options } from '@anthropic-ai/claude-agent-sdk';
 import { BaseProvider } from './base-provider.js';
 import { classifyError, getUserFriendlyErrorMessage } from '@automaker/utils';
+import { getThinkingTokenBudget } from '@automaker/types';
 import type {
   ExecuteOptions,
   ProviderMessage,
@@ -60,7 +61,11 @@ export class ClaudeProvider extends BaseProvider {
       abortController,
       conversationHistory,
       sdkSessionId,
+      thinkingLevel,
     } = options;
+
+    // Convert thinking level to token budget
+    const maxThinkingTokens = getThinkingTokenBudget(thinkingLevel);
 
     // Build Claude SDK options
     // MCP permission logic - determines how to handle tool permissions when MCP servers are configured.
@@ -103,6 +108,8 @@ export class ClaudeProvider extends BaseProvider {
       ...(options.sandbox && { sandbox: options.sandbox }),
       // Forward MCP servers configuration
       ...(options.mcpServers && { mcpServers: options.mcpServers }),
+      // Extended thinking configuration
+      ...(maxThinkingTokens && { maxThinkingTokens }),
     };
 
     // Build prompt payload

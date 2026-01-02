@@ -597,6 +597,170 @@ describe('settings-service.ts', () => {
     });
   });
 
+  describe('phase model migration (v2 -> v3)', () => {
+    it('should migrate string phase models to PhaseModelEntry format', async () => {
+      // Simulate v2 format with string phase models
+      const v2Settings = {
+        version: 2,
+        theme: 'dark',
+        phaseModels: {
+          enhancementModel: 'sonnet',
+          fileDescriptionModel: 'haiku',
+          imageDescriptionModel: 'haiku',
+          validationModel: 'sonnet',
+          specGenerationModel: 'opus',
+          featureGenerationModel: 'sonnet',
+          backlogPlanningModel: 'sonnet',
+          projectAnalysisModel: 'sonnet',
+        },
+      };
+      const settingsPath = path.join(testDataDir, 'settings.json');
+      await fs.writeFile(settingsPath, JSON.stringify(v2Settings, null, 2));
+
+      const settings = await settingsService.getGlobalSettings();
+
+      // Verify all phase models are now PhaseModelEntry objects
+      expect(settings.phaseModels.enhancementModel).toEqual({ model: 'sonnet' });
+      expect(settings.phaseModels.fileDescriptionModel).toEqual({ model: 'haiku' });
+      expect(settings.phaseModels.specGenerationModel).toEqual({ model: 'opus' });
+      expect(settings.version).toBe(SETTINGS_VERSION);
+    });
+
+    it('should preserve PhaseModelEntry objects during migration', async () => {
+      // Simulate v3 format (already has PhaseModelEntry objects)
+      const v3Settings = {
+        version: 3,
+        theme: 'dark',
+        phaseModels: {
+          enhancementModel: { model: 'sonnet', thinkingLevel: 'high' },
+          fileDescriptionModel: { model: 'haiku' },
+          imageDescriptionModel: { model: 'haiku', thinkingLevel: 'low' },
+          validationModel: { model: 'sonnet' },
+          specGenerationModel: { model: 'opus', thinkingLevel: 'ultrathink' },
+          featureGenerationModel: { model: 'sonnet' },
+          backlogPlanningModel: { model: 'sonnet', thinkingLevel: 'medium' },
+          projectAnalysisModel: { model: 'sonnet' },
+        },
+      };
+      const settingsPath = path.join(testDataDir, 'settings.json');
+      await fs.writeFile(settingsPath, JSON.stringify(v3Settings, null, 2));
+
+      const settings = await settingsService.getGlobalSettings();
+
+      // Verify PhaseModelEntry objects are preserved with thinkingLevel
+      expect(settings.phaseModels.enhancementModel).toEqual({
+        model: 'sonnet',
+        thinkingLevel: 'high',
+      });
+      expect(settings.phaseModels.specGenerationModel).toEqual({
+        model: 'opus',
+        thinkingLevel: 'ultrathink',
+      });
+      expect(settings.phaseModels.backlogPlanningModel).toEqual({
+        model: 'sonnet',
+        thinkingLevel: 'medium',
+      });
+    });
+
+    it('should handle mixed format (some string, some object)', async () => {
+      // Edge case: mixed format (shouldn't happen but handle gracefully)
+      const mixedSettings = {
+        version: 2,
+        theme: 'dark',
+        phaseModels: {
+          enhancementModel: 'sonnet', // string
+          fileDescriptionModel: { model: 'haiku', thinkingLevel: 'low' }, // object
+          imageDescriptionModel: 'haiku', // string
+          validationModel: { model: 'opus' }, // object without thinkingLevel
+          specGenerationModel: 'opus',
+          featureGenerationModel: 'sonnet',
+          backlogPlanningModel: 'sonnet',
+          projectAnalysisModel: 'sonnet',
+        },
+      };
+      const settingsPath = path.join(testDataDir, 'settings.json');
+      await fs.writeFile(settingsPath, JSON.stringify(mixedSettings, null, 2));
+
+      const settings = await settingsService.getGlobalSettings();
+
+      // Strings should be converted to objects
+      expect(settings.phaseModels.enhancementModel).toEqual({ model: 'sonnet' });
+      expect(settings.phaseModels.imageDescriptionModel).toEqual({ model: 'haiku' });
+      // Objects should be preserved
+      expect(settings.phaseModels.fileDescriptionModel).toEqual({
+        model: 'haiku',
+        thinkingLevel: 'low',
+      });
+      expect(settings.phaseModels.validationModel).toEqual({ model: 'opus' });
+    });
+
+    it('should migrate legacy enhancementModel/validationModel fields', async () => {
+      // Simulate v1 format with legacy fields
+      const v1Settings = {
+        version: 1,
+        theme: 'dark',
+        enhancementModel: 'haiku',
+        validationModel: 'opus',
+        // No phaseModels object
+      };
+      const settingsPath = path.join(testDataDir, 'settings.json');
+      await fs.writeFile(settingsPath, JSON.stringify(v1Settings, null, 2));
+
+      const settings = await settingsService.getGlobalSettings();
+
+      // Legacy fields should be migrated to phaseModels
+      expect(settings.phaseModels.enhancementModel).toEqual({ model: 'haiku' });
+      expect(settings.phaseModels.validationModel).toEqual({ model: 'opus' });
+      // Other fields should use defaults
+      expect(settings.phaseModels.specGenerationModel).toEqual({ model: 'opus' });
+    });
+
+    it('should use default phase models when none are configured', async () => {
+      // Simulate empty settings
+      const emptySettings = {
+        version: 1,
+        theme: 'dark',
+      };
+      const settingsPath = path.join(testDataDir, 'settings.json');
+      await fs.writeFile(settingsPath, JSON.stringify(emptySettings, null, 2));
+
+      const settings = await settingsService.getGlobalSettings();
+
+      // Should use DEFAULT_PHASE_MODELS
+      expect(settings.phaseModels.enhancementModel).toEqual({ model: 'sonnet' });
+      expect(settings.phaseModels.fileDescriptionModel).toEqual({ model: 'haiku' });
+      expect(settings.phaseModels.specGenerationModel).toEqual({ model: 'opus' });
+    });
+
+    it('should deep merge phaseModels on update', async () => {
+      // Create initial settings with some phase models
+      await settingsService.updateGlobalSettings({
+        phaseModels: {
+          enhancementModel: { model: 'sonnet', thinkingLevel: 'high' },
+        },
+      });
+
+      // Update with a different phase model
+      await settingsService.updateGlobalSettings({
+        phaseModels: {
+          specGenerationModel: { model: 'opus', thinkingLevel: 'ultrathink' },
+        },
+      });
+
+      const settings = await settingsService.getGlobalSettings();
+
+      // Both should be preserved
+      expect(settings.phaseModels.enhancementModel).toEqual({
+        model: 'sonnet',
+        thinkingLevel: 'high',
+      });
+      expect(settings.phaseModels.specGenerationModel).toEqual({
+        model: 'opus',
+        thinkingLevel: 'ultrathink',
+      });
+    });
+  });
+
   describe('atomicWriteJson', () => {
     // Skip on Windows as chmod doesn't work the same way (CI runs on Linux)
     it.skipIf(process.platform === 'win32')(

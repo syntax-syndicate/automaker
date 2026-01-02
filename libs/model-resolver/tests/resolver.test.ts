@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { resolveModelString, getEffectiveModel } from '../src/resolver';
-import { CLAUDE_MODEL_MAP, CURSOR_MODEL_MAP, DEFAULT_MODELS } from '@automaker/types';
+import { resolveModelString, getEffectiveModel, resolvePhaseModel } from '../src/resolver';
+import {
+  CLAUDE_MODEL_MAP,
+  CURSOR_MODEL_MAP,
+  DEFAULT_MODELS,
+  type PhaseModelEntry,
+} from '@automaker/types';
 
 describe('model-resolver', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
@@ -351,6 +356,184 @@ describe('model-resolver', () => {
       expect(result).toBe(DEFAULT_MODELS.claude);
       expect(DEFAULT_MODELS.claude).toBeDefined();
       expect(DEFAULT_MODELS.claude).toContain('claude-');
+    });
+  });
+
+  describe('resolvePhaseModel', () => {
+    describe('with null/undefined input (defensive handling)', () => {
+      it('should return default model when phaseModel is null', () => {
+        const result = resolvePhaseModel(null);
+
+        expect(result.model).toBe(DEFAULT_MODELS.claude);
+        expect(result.thinkingLevel).toBeUndefined();
+      });
+
+      it('should return default model when phaseModel is undefined', () => {
+        const result = resolvePhaseModel(undefined);
+
+        expect(result.model).toBe(DEFAULT_MODELS.claude);
+        expect(result.thinkingLevel).toBeUndefined();
+      });
+
+      it('should use custom default when phaseModel is null', () => {
+        const customDefault = 'claude-opus-4-20241113';
+        const result = resolvePhaseModel(null, customDefault);
+
+        expect(result.model).toBe(customDefault);
+        expect(result.thinkingLevel).toBeUndefined();
+      });
+    });
+
+    describe('with legacy string format (v2 settings)', () => {
+      it('should resolve Claude alias string', () => {
+        const result = resolvePhaseModel('sonnet');
+
+        expect(result.model).toBe(CLAUDE_MODEL_MAP.sonnet);
+        expect(result.thinkingLevel).toBeUndefined();
+      });
+
+      it('should resolve opus alias string', () => {
+        const result = resolvePhaseModel('opus');
+
+        expect(result.model).toBe(CLAUDE_MODEL_MAP.opus);
+        expect(result.thinkingLevel).toBeUndefined();
+      });
+
+      it('should resolve haiku alias string', () => {
+        const result = resolvePhaseModel('haiku');
+
+        expect(result.model).toBe(CLAUDE_MODEL_MAP.haiku);
+        expect(result.thinkingLevel).toBeUndefined();
+      });
+
+      it('should pass through full Claude model string', () => {
+        const fullModel = 'claude-sonnet-4-20250514';
+        const result = resolvePhaseModel(fullModel);
+
+        expect(result.model).toBe(fullModel);
+        expect(result.thinkingLevel).toBeUndefined();
+      });
+
+      it('should handle Cursor model string', () => {
+        const result = resolvePhaseModel('cursor-auto');
+
+        expect(result.model).toBe('cursor-auto');
+        expect(result.thinkingLevel).toBeUndefined();
+      });
+    });
+
+    describe('with PhaseModelEntry object format (v3 settings)', () => {
+      it('should resolve model from entry without thinkingLevel', () => {
+        const entry: PhaseModelEntry = { model: 'sonnet' };
+        const result = resolvePhaseModel(entry);
+
+        expect(result.model).toBe(CLAUDE_MODEL_MAP.sonnet);
+        expect(result.thinkingLevel).toBeUndefined();
+      });
+
+      it('should resolve model and return thinkingLevel none', () => {
+        const entry: PhaseModelEntry = { model: 'opus', thinkingLevel: 'none' };
+        const result = resolvePhaseModel(entry);
+
+        expect(result.model).toBe(CLAUDE_MODEL_MAP.opus);
+        expect(result.thinkingLevel).toBe('none');
+      });
+
+      it('should resolve model and return thinkingLevel low', () => {
+        const entry: PhaseModelEntry = { model: 'sonnet', thinkingLevel: 'low' };
+        const result = resolvePhaseModel(entry);
+
+        expect(result.model).toBe(CLAUDE_MODEL_MAP.sonnet);
+        expect(result.thinkingLevel).toBe('low');
+      });
+
+      it('should resolve model and return thinkingLevel medium', () => {
+        const entry: PhaseModelEntry = { model: 'haiku', thinkingLevel: 'medium' };
+        const result = resolvePhaseModel(entry);
+
+        expect(result.model).toBe(CLAUDE_MODEL_MAP.haiku);
+        expect(result.thinkingLevel).toBe('medium');
+      });
+
+      it('should resolve model and return thinkingLevel high', () => {
+        const entry: PhaseModelEntry = { model: 'opus', thinkingLevel: 'high' };
+        const result = resolvePhaseModel(entry);
+
+        expect(result.model).toBe(CLAUDE_MODEL_MAP.opus);
+        expect(result.thinkingLevel).toBe('high');
+      });
+
+      it('should resolve model and return thinkingLevel ultrathink', () => {
+        const entry: PhaseModelEntry = { model: 'opus', thinkingLevel: 'ultrathink' };
+        const result = resolvePhaseModel(entry);
+
+        expect(result.model).toBe(CLAUDE_MODEL_MAP.opus);
+        expect(result.thinkingLevel).toBe('ultrathink');
+      });
+
+      it('should handle full Claude model string in entry', () => {
+        const entry: PhaseModelEntry = {
+          model: 'claude-opus-4-5-20251101',
+          thinkingLevel: 'high',
+        };
+        const result = resolvePhaseModel(entry);
+
+        expect(result.model).toBe('claude-opus-4-5-20251101');
+        expect(result.thinkingLevel).toBe('high');
+      });
+    });
+
+    describe('with Cursor models (thinkingLevel should be preserved but unused)', () => {
+      it('should handle Cursor model entry without thinkingLevel', () => {
+        const entry: PhaseModelEntry = { model: 'auto' };
+        const result = resolvePhaseModel(entry);
+
+        expect(result.model).toBe('cursor-auto');
+        expect(result.thinkingLevel).toBeUndefined();
+      });
+
+      it('should preserve thinkingLevel even for Cursor models (caller handles)', () => {
+        // Note: thinkingLevel is meaningless for Cursor but we don't filter it
+        // The calling code should check isCursorModel() before using thinkingLevel
+        const entry: PhaseModelEntry = { model: 'composer-1', thinkingLevel: 'high' };
+        const result = resolvePhaseModel(entry);
+
+        expect(result.model).toBe('cursor-composer-1');
+        expect(result.thinkingLevel).toBe('high');
+      });
+
+      it('should handle cursor-prefixed model in entry', () => {
+        const entry: PhaseModelEntry = { model: 'cursor-gpt-4o' as any };
+        const result = resolvePhaseModel(entry);
+
+        expect(result.model).toBe('cursor-gpt-4o');
+      });
+    });
+
+    describe('edge cases', () => {
+      it('should handle empty string model in entry', () => {
+        const entry: PhaseModelEntry = { model: '' as any };
+        const result = resolvePhaseModel(entry);
+
+        expect(result.model).toBe(DEFAULT_MODELS.claude);
+        expect(result.thinkingLevel).toBeUndefined();
+      });
+
+      it('should handle unknown model alias in entry', () => {
+        const entry: PhaseModelEntry = { model: 'unknown-model' as any };
+        const result = resolvePhaseModel(entry);
+
+        expect(result.model).toBe(DEFAULT_MODELS.claude);
+      });
+
+      it('should use custom default for unknown model in entry', () => {
+        const entry: PhaseModelEntry = { model: 'invalid' as any, thinkingLevel: 'high' };
+        const customDefault = 'claude-haiku-4-5-20251001';
+        const result = resolvePhaseModel(entry, customDefault);
+
+        expect(result.model).toBe(customDefault);
+        expect(result.thinkingLevel).toBe('high');
+      });
     });
   });
 });

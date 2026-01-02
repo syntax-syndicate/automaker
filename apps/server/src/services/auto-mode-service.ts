@@ -16,6 +16,8 @@ import type {
   ModelProvider,
   PipelineConfig,
   PipelineStep,
+  ThinkingLevel,
+  PlanningMode,
 } from '@automaker/types';
 import { DEFAULT_PHASE_MODELS } from '@automaker/types';
 import {
@@ -24,7 +26,7 @@ import {
   classifyError,
   loadContextFiles,
 } from '@automaker/utils';
-import { resolveModelString, DEFAULT_MODELS } from '@automaker/model-resolver';
+import { resolveModelString, resolvePhaseModel, DEFAULT_MODELS } from '@automaker/model-resolver';
 import { resolveDependencies, areDependenciesSatisfied } from '@automaker/dependency-resolver';
 import { getFeatureDir, getAutomakerDir, getFeaturesDir } from '@automaker/platform';
 import { exec } from 'child_process';
@@ -51,8 +53,7 @@ import {
 
 const execAsync = promisify(exec);
 
-// Planning mode types for spec-driven development
-type PlanningMode = 'skip' | 'lite' | 'spec' | 'full';
+// PlanningMode type is imported from @automaker/types
 
 interface ParsedTask {
   id: string; // e.g., "T001"
@@ -576,6 +577,7 @@ export class AutoModeService {
           requirePlanApproval: feature.requirePlanApproval,
           systemPrompt: contextFilesPrompt || undefined,
           autoLoadClaudeMd,
+          thinkingLevel: feature.thinkingLevel,
         }
       );
 
@@ -734,6 +736,7 @@ export class AutoModeService {
           previousContent: previousContext,
           systemPrompt: contextFilesPrompt || undefined,
           autoLoadClaudeMd,
+          thinkingLevel: feature.thinkingLevel,
         }
       );
 
@@ -1049,6 +1052,7 @@ Address the follow-up instructions above. Review the previous work and make the 
           previousContent: previousContext || undefined,
           systemPrompt: contextFilesPrompt || undefined,
           autoLoadClaudeMd,
+          thinkingLevel: feature?.thinkingLevel,
         }
       );
 
@@ -1278,9 +1282,10 @@ Format your response as a structured markdown document.`;
     try {
       // Get model from phase settings
       const settings = await this.settingsService?.getGlobalSettings();
-      const projectAnalysisModel =
+      const phaseModelEntry =
         settings?.phaseModels?.projectAnalysisModel || DEFAULT_PHASE_MODELS.projectAnalysisModel;
-      const analysisModel = resolveModelString(projectAnalysisModel, DEFAULT_MODELS.claude);
+      const { model: analysisModel, thinkingLevel: analysisThinkingLevel } =
+        resolvePhaseModel(phaseModelEntry);
       console.log('[AutoMode] Using model for project analysis:', analysisModel);
 
       const provider = ProviderFactory.getProviderForModel(analysisModel);
@@ -1300,6 +1305,7 @@ Format your response as a structured markdown document.`;
         allowedTools: ['Read', 'Glob', 'Grep'],
         abortController,
         autoLoadClaudeMd,
+        thinkingLevel: analysisThinkingLevel,
       });
 
       const options: ExecuteOptions = {
@@ -1311,6 +1317,7 @@ Format your response as a structured markdown document.`;
         abortController,
         settingSources: sdkOptions.settingSources,
         sandbox: sdkOptions.sandbox, // Pass sandbox configuration
+        thinkingLevel: analysisThinkingLevel, // Pass thinking level
       };
 
       const stream = provider.executeQuery(options);
@@ -1954,6 +1961,7 @@ This helps parse your summary correctly in the output logs.`;
       previousContent?: string;
       systemPrompt?: string;
       autoLoadClaudeMd?: boolean;
+      thinkingLevel?: ThinkingLevel;
     }
   ): Promise<void> {
     const finalProjectPath = options?.projectPath || projectPath;
@@ -2052,6 +2060,7 @@ This mock response was generated because AUTOMAKER_MOCK_AGENT=true was set.
       mcpServers: Object.keys(mcpServers).length > 0 ? mcpServers : undefined,
       mcpAutoApproveTools: mcpPermissions.mcpAutoApproveTools,
       mcpUnrestrictedTools: mcpPermissions.mcpUnrestrictedTools,
+      thinkingLevel: options?.thinkingLevel,
     });
 
     // Extract model, maxTurns, and allowedTools from SDK options
@@ -2096,6 +2105,7 @@ This mock response was generated because AUTOMAKER_MOCK_AGENT=true was set.
       mcpServers: Object.keys(mcpServers).length > 0 ? mcpServers : undefined, // Pass MCP servers configuration
       mcpAutoApproveTools: mcpPermissions.mcpAutoApproveTools, // Pass MCP auto-approve setting
       mcpUnrestrictedTools: mcpPermissions.mcpUnrestrictedTools, // Pass MCP unrestricted tools setting
+      thinkingLevel: options?.thinkingLevel, // Pass thinking level for extended thinking
     };
 
     // Execute via provider

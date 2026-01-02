@@ -23,9 +23,25 @@ import {
 import { getElectronAPI } from '@/lib/electron';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import type { BacklogPlanResult, BacklogChange, ModelAlias, CursorModelId } from '@automaker/types';
+import type {
+  BacklogPlanResult,
+  BacklogChange,
+  ModelAlias,
+  CursorModelId,
+  PhaseModelEntry,
+} from '@automaker/types';
 import { ModelOverrideTrigger } from '@/components/shared/model-override-trigger';
 import { useAppStore } from '@/store/app-store';
+
+/**
+ * Extract model string from PhaseModelEntry or string
+ */
+function extractModel(entry: PhaseModelEntry | string): ModelAlias | CursorModelId {
+  if (typeof entry === 'string') {
+    return entry as ModelAlias | CursorModelId;
+  }
+  return entry.model;
+}
 
 interface BacklogPlanDialogProps {
   open: boolean;
@@ -88,8 +104,8 @@ export function BacklogPlanDialog({
     // Start generation in background
     setIsGeneratingPlan(true);
 
-    // Use model override if set, otherwise use global default
-    const effectiveModel = modelOverride || phaseModels.backlogPlanningModel;
+    // Use model override if set, otherwise use global default (extract model string from PhaseModelEntry)
+    const effectiveModel = modelOverride || extractModel(phaseModels.backlogPlanningModel);
     const result = await api.backlogPlan.generate(projectPath, prompt, effectiveModel);
     if (!result.success) {
       setIsGeneratingPlan(false);
@@ -365,8 +381,8 @@ export function BacklogPlanDialog({
     }
   };
 
-  // Get effective model (override or global default)
-  const effectiveModel = modelOverride || phaseModels.backlogPlanningModel;
+  // Get effective model (override or global default) - extract model string from PhaseModelEntry
+  const effectiveModel = modelOverride || extractModel(phaseModels.backlogPlanningModel);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>

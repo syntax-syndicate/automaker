@@ -15,6 +15,8 @@ import {
   PROVIDER_PREFIXES,
   isCursorModel,
   stripProviderPrefix,
+  type PhaseModelEntry,
+  type ThinkingLevel,
 } from '@automaker/types';
 
 /**
@@ -97,4 +99,73 @@ export function getEffectiveModel(
   defaultModel?: string
 ): string {
   return resolveModelString(explicitModel || sessionModel, defaultModel);
+}
+
+/**
+ * Result of resolving a phase model entry
+ */
+export interface ResolvedPhaseModel {
+  /** Resolved model string (full model ID) */
+  model: string;
+  /** Optional thinking level for extended thinking */
+  thinkingLevel?: ThinkingLevel;
+}
+
+/**
+ * Resolve a phase model entry to a model string and thinking level
+ *
+ * Handles both legacy format (string) and new format (PhaseModelEntry object).
+ * This centralizes the pattern used across phase model routes.
+ *
+ * @param phaseModel - Phase model entry (string or PhaseModelEntry object)
+ * @param defaultModel - Fallback model if resolution fails
+ * @returns Resolved model string and optional thinking level
+ *
+ * @remarks
+ * - For Cursor models, `thinkingLevel` is returned as `undefined` since Cursor
+ *   handles thinking internally via model variants (e.g., 'claude-sonnet-4-thinking')
+ * - Defensively handles null/undefined from corrupted settings JSON
+ *
+ * @example
+ * ```ts
+ * const phaseModel = settings?.phaseModels?.enhancementModel || DEFAULT_PHASE_MODELS.enhancementModel;
+ * const { model, thinkingLevel } = resolvePhaseModel(phaseModel);
+ * ```
+ */
+export function resolvePhaseModel(
+  phaseModel: string | PhaseModelEntry | null | undefined,
+  defaultModel: string = DEFAULT_MODELS.claude
+): ResolvedPhaseModel {
+  console.log(
+    `[ModelResolver] resolvePhaseModel called with:`,
+    JSON.stringify(phaseModel),
+    `type: ${typeof phaseModel}`
+  );
+
+  // Handle null/undefined (defensive against corrupted JSON)
+  if (!phaseModel) {
+    console.log(`[ModelResolver] phaseModel is null/undefined, using default`);
+    return {
+      model: resolveModelString(undefined, defaultModel),
+      thinkingLevel: undefined,
+    };
+  }
+
+  // Handle legacy string format
+  if (typeof phaseModel === 'string') {
+    console.log(`[ModelResolver] phaseModel is string format (legacy): "${phaseModel}"`);
+    return {
+      model: resolveModelString(phaseModel, defaultModel),
+      thinkingLevel: undefined,
+    };
+  }
+
+  // Handle new PhaseModelEntry object format
+  console.log(
+    `[ModelResolver] phaseModel is object format: model="${phaseModel.model}", thinkingLevel="${phaseModel.thinkingLevel}"`
+  );
+  return {
+    model: resolveModelString(phaseModel.model, defaultModel),
+    thinkingLevel: phaseModel.thinkingLevel,
+  };
 }

@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useAppStore } from '@/store/app-store';
-import type { ModelAlias, CursorModelId, PhaseModelKey } from '@automaker/types';
+import type { ModelAlias, CursorModelId, PhaseModelKey, PhaseModelEntry } from '@automaker/types';
 
 export interface UseModelOverrideOptions {
   /** Which phase this override is for */
@@ -22,6 +22,16 @@ export interface UseModelOverrideResult {
   globalDefault: ModelAlias | CursorModelId;
   /** The current override value (null if not overridden) */
   override: ModelAlias | CursorModelId | null;
+}
+
+/**
+ * Extract model string from PhaseModelEntry or string
+ */
+function extractModel(entry: PhaseModelEntry | string): ModelAlias | CursorModelId {
+  if (typeof entry === 'string') {
+    return entry as ModelAlias | CursorModelId;
+  }
+  return entry.model;
 }
 
 /**
@@ -55,7 +65,8 @@ export function useModelOverride({
   const { phaseModels } = useAppStore();
   const [override, setOverrideState] = useState<ModelAlias | CursorModelId | null>(initialOverride);
 
-  const globalDefault = phaseModels[phase];
+  // Extract model string from PhaseModelEntry (handles both old string format and new object format)
+  const globalDefault = extractModel(phaseModels[phase]);
 
   const effectiveModel = useMemo(() => {
     return override ?? globalDefault;

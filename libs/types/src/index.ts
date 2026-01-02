@@ -71,6 +71,7 @@ export type {
   PlanningMode,
   ThinkingLevel,
   ModelProvider,
+  PhaseModelEntry,
   PhaseModelConfig,
   PhaseModelKey,
   KeyboardShortcuts,
@@ -95,8 +96,10 @@ export {
   SETTINGS_VERSION,
   CREDENTIALS_VERSION,
   PROJECT_SETTINGS_VERSION,
+  THINKING_TOKEN_BUDGET,
   profileHasThinking,
   getProfileModelString,
+  getThinkingTokenBudget,
 } from './settings.js';
 
 // Model display constants

@@ -17,7 +17,8 @@ import type {
   GitHubComment,
   LinkedPRInfo,
 } from '@automaker/types';
-import { isCursorModel } from '@automaker/types';
+import { isCursorModel, DEFAULT_PHASE_MODELS } from '@automaker/types';
+import { resolvePhaseModel } from '@automaker/model-resolver';
 import { createSuggestionsOptions } from '../../../lib/sdk-options.js';
 import { extractJson } from '../../../lib/json-extractor.js';
 import { writeValidation } from '../../../lib/validation-storage.js';
@@ -174,6 +175,12 @@ ${prompt}`;
         '[ValidateIssue]'
       );
 
+      // Get thinkingLevel from phase model settings (the model comes from request, but thinkingLevel from settings)
+      const settings = await settingsService?.getGlobalSettings();
+      const phaseModelEntry =
+        settings?.phaseModels?.validationModel || DEFAULT_PHASE_MODELS.validationModel;
+      const { thinkingLevel } = resolvePhaseModel(phaseModelEntry);
+
       // Create SDK options with structured output and abort controller
       const options = createSuggestionsOptions({
         cwd: projectPath,
@@ -181,6 +188,7 @@ ${prompt}`;
         systemPrompt: ISSUE_VALIDATION_SYSTEM_PROMPT,
         abortController,
         autoLoadClaudeMd,
+        thinkingLevel,
         outputFormat: {
           type: 'json_schema',
           schema: issueValidationSchema as Record<string, unknown>,

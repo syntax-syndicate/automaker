@@ -9,7 +9,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { EventEmitter } from '../../lib/events.js';
 import { createLogger } from '@automaker/utils';
 import { DEFAULT_PHASE_MODELS, isCursorModel } from '@automaker/types';
-import { resolveModelString } from '@automaker/model-resolver';
+import { resolvePhaseModel } from '@automaker/model-resolver';
 import { createSuggestionsOptions } from '../../lib/sdk-options.js';
 import { extractJsonWithArray } from '../../lib/json-extractor.js';
 import { ProviderFactory } from '../../providers/provider-factory.js';
@@ -173,9 +173,9 @@ The response will be automatically formatted as structured JSON.`;
 
   // Get model from phase settings (Feature Enhancement = enhancementModel)
   const settings = await settingsService?.getGlobalSettings();
-  const enhancementModel =
+  const phaseModelEntry =
     settings?.phaseModels?.enhancementModel || DEFAULT_PHASE_MODELS.enhancementModel;
-  const model = resolveModelString(enhancementModel);
+  const { model, thinkingLevel } = resolvePhaseModel(phaseModelEntry);
 
   logger.info('[Suggestions] Using model:', model);
 
@@ -247,6 +247,7 @@ Your entire response should be valid JSON starting with { and ending with }. No 
       abortController,
       autoLoadClaudeMd,
       model, // Pass the model from settings
+      thinkingLevel, // Pass thinking level for extended thinking
       outputFormat: {
         type: 'json_schema',
         schema: suggestionsSchema,

@@ -24,6 +24,7 @@ export type {
   ProjectSettings,
   PhaseModelConfig,
   PhaseModelKey,
+  PhaseModelEntry,
 } from '@automaker/types';
 
 export {

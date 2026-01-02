@@ -15,7 +15,7 @@ import type { Request, Response } from 'express';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { createLogger, readImageAsBase64 } from '@automaker/utils';
 import { DEFAULT_PHASE_MODELS, isCursorModel } from '@automaker/types';
-import { resolveModelString } from '@automaker/model-resolver';
+import { resolvePhaseModel } from '@automaker/model-resolver';
 import { createCustomOptions } from '../../../lib/sdk-options.js';
 import { ProviderFactory } from '../../../providers/provider-factory.js';
 import * as secureFs from '../../../lib/secure-fs.js';
@@ -342,9 +342,9 @@ export function createDescribeImageHandler(
 
       // Get model from phase settings
       const settings = await settingsService?.getGlobalSettings();
-      const imageDescriptionModel =
+      const phaseModelEntry =
         settings?.phaseModels?.imageDescriptionModel || DEFAULT_PHASE_MODELS.imageDescriptionModel;
-      const model = resolveModelString(imageDescriptionModel);
+      const { model, thinkingLevel } = resolvePhaseModel(phaseModelEntry);
 
       logger.info(`[${requestId}] Using model: ${model}`);
 
@@ -395,6 +395,7 @@ export function createDescribeImageHandler(
           allowedTools: [],
           autoLoadClaudeMd,
           sandbox: { enabled: true, autoAllowBashIfSandboxed: true },
+          thinkingLevel, // Pass thinking level for extended thinking
         });
 
         logger.info(

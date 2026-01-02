@@ -70,8 +70,45 @@ export type PlanningMode = 'skip' | 'lite' | 'spec' | 'full';
 /** ThinkingLevel - Extended thinking levels for Claude models (reasoning intensity) */
 export type ThinkingLevel = 'none' | 'low' | 'medium' | 'high' | 'ultrathink';
 
+/**
+ * Thinking token budget mapping based on Claude SDK documentation.
+ * @see https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking
+ *
+ * - Minimum budget: 1,024 tokens
+ * - Complex tasks starting point: 16,000+ tokens
+ * - Above 32,000: Risk of timeouts (batch processing recommended)
+ */
+export const THINKING_TOKEN_BUDGET: Record<ThinkingLevel, number | undefined> = {
+  none: undefined, // Thinking disabled
+  low: 1024, // Minimum per docs
+  medium: 10000, // Light reasoning
+  high: 16000, // Complex tasks (recommended starting point)
+  ultrathink: 32000, // Maximum safe (above this risks timeouts)
+};
+
+/**
+ * Convert thinking level to SDK maxThinkingTokens value
+ */
+export function getThinkingTokenBudget(level: ThinkingLevel | undefined): number | undefined {
+  if (!level || level === 'none') return undefined;
+  return THINKING_TOKEN_BUDGET[level];
+}
+
 /** ModelProvider - AI model provider for credentials and API key management */
 export type ModelProvider = 'claude' | 'cursor';
+
+/**
+ * PhaseModelEntry - Configuration for a single phase model
+ *
+ * Encapsulates both the model selection and optional thinking level
+ * for Claude models. Cursor models handle thinking internally.
+ */
+export interface PhaseModelEntry {
+  /** The model to use (Claude alias or Cursor model ID) */
+  model: ModelAlias | CursorModelId;
+  /** Extended thinking level (only applies to Claude models, defaults to 'none') */
+  thinkingLevel?: ThinkingLevel;
+}
 
 /**
  * PhaseModelConfig - Configuration for AI models used in different application phases
@@ -83,25 +120,25 @@ export type ModelProvider = 'claude' | 'cursor';
 export interface PhaseModelConfig {
   // Quick tasks - recommend fast/cheap models (Haiku, Cursor auto)
   /** Model for enhancing feature names and descriptions */
-  enhancementModel: ModelAlias | CursorModelId;
+  enhancementModel: PhaseModelEntry;
   /** Model for generating file context descriptions */
-  fileDescriptionModel: ModelAlias | CursorModelId;
+  fileDescriptionModel: PhaseModelEntry;
   /** Model for analyzing and describing context images */
-  imageDescriptionModel: ModelAlias | CursorModelId;
+  imageDescriptionModel: PhaseModelEntry;
 
   // Validation tasks - recommend smart models (Sonnet, Opus)
   /** Model for validating and improving GitHub issues */
-  validationModel: ModelAlias | CursorModelId;
+  validationModel: PhaseModelEntry;
 
   // Generation tasks - recommend powerful models (Opus, Sonnet)
   /** Model for generating full application specifications */
-  specGenerationModel: ModelAlias | CursorModelId;
+  specGenerationModel: PhaseModelEntry;
   /** Model for creating features from specifications */
-  featureGenerationModel: ModelAlias | CursorModelId;
+  featureGenerationModel: PhaseModelEntry;
   /** Model for reorganizing and prioritizing backlog */
-  backlogPlanningModel: ModelAlias | CursorModelId;
+  backlogPlanningModel: PhaseModelEntry;
   /** Model for analyzing project structure */
-  projectAnalysisModel: ModelAlias | CursorModelId;
+  projectAnalysisModel: PhaseModelEntry;
 }
 
 /** Keys of PhaseModelConfig for type-safe access */
@@ -559,22 +596,22 @@ export interface ProjectSettings {
 /** Default phase model configuration - sensible defaults for each task type */
 export const DEFAULT_PHASE_MODELS: PhaseModelConfig = {
   // Quick tasks - use fast models for speed and cost
-  enhancementModel: 'sonnet',
-  fileDescriptionModel: 'haiku',
-  imageDescriptionModel: 'haiku',
+  enhancementModel: { model: 'sonnet' },
+  fileDescriptionModel: { model: 'haiku' },
+  imageDescriptionModel: { model: 'haiku' },
 
   // Validation - use smart models for accuracy
-  validationModel: 'sonnet',
+  validationModel: { model: 'sonnet' },
 
   // Generation - use powerful models for quality
-  specGenerationModel: 'opus',
-  featureGenerationModel: 'sonnet',
-  backlogPlanningModel: 'sonnet',
-  projectAnalysisModel: 'sonnet',
+  specGenerationModel: { model: 'opus' },
+  featureGenerationModel: { model: 'sonnet' },
+  backlogPlanningModel: { model: 'sonnet' },
+  projectAnalysisModel: { model: 'sonnet' },
 };
 
 /** Current version of the global settings schema */
-export const SETTINGS_VERSION = 2;
+export const SETTINGS_VERSION = 3;
 /** Current version of the credentials schema */
 export const CREDENTIALS_VERSION = 1;
 /** Current version of the project settings schema */

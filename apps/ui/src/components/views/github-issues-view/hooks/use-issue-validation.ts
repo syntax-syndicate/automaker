@@ -7,10 +7,23 @@ import {
   IssueValidationEvent,
   StoredValidation,
 } from '@/lib/electron';
-import type { LinkedPRInfo } from '@automaker/types';
+import type { LinkedPRInfo, PhaseModelEntry, ModelAlias, CursorModelId } from '@automaker/types';
 import { useAppStore } from '@/store/app-store';
 import { toast } from 'sonner';
 import { isValidationStale } from '../utils';
+
+/**
+ * Extract model string from PhaseModelEntry or string (handles both formats)
+ */
+function extractModel(
+  entry: PhaseModelEntry | string | undefined
+): ModelAlias | CursorModelId | undefined {
+  if (!entry) return undefined;
+  if (typeof entry === 'string') {
+    return entry as ModelAlias | CursorModelId;
+  }
+  return entry.model;
+}
 
 interface UseIssueValidationOptions {
   selectedIssue: GitHubIssue | null;
@@ -244,7 +257,8 @@ export function useIssueValidation({
       });
 
       // Use provided model override or fall back to phaseModels.validationModel
-      const modelToUse = model || phaseModels.validationModel;
+      // Extract model string from PhaseModelEntry (handles both old string format and new object format)
+      const modelToUse = model || extractModel(phaseModels.validationModel);
 
       try {
         const api = getElectronAPI();

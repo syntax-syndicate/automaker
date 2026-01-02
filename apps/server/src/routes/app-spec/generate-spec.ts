@@ -17,7 +17,7 @@ import {
 } from '../../lib/app-spec-format.js';
 import { createLogger } from '@automaker/utils';
 import { DEFAULT_PHASE_MODELS, isCursorModel } from '@automaker/types';
-import { resolveModelString } from '@automaker/model-resolver';
+import { resolvePhaseModel } from '@automaker/model-resolver';
 import { createSpecGenerationOptions } from '../../lib/sdk-options.js';
 import { extractJson } from '../../lib/json-extractor.js';
 import { ProviderFactory } from '../../providers/provider-factory.js';
@@ -102,9 +102,9 @@ ${getStructuredSpecPromptInstruction()}`;
 
   // Get model from phase settings
   const settings = await settingsService?.getGlobalSettings();
-  const specGenerationModel =
+  const phaseModelEntry =
     settings?.phaseModels?.specGenerationModel || DEFAULT_PHASE_MODELS.specGenerationModel;
-  const model = resolveModelString(specGenerationModel);
+  const { model, thinkingLevel } = resolvePhaseModel(phaseModelEntry);
 
   logger.info('Using model:', model);
 
@@ -185,6 +185,7 @@ Your entire response should be valid JSON starting with { and ending with }. No 
       abortController,
       autoLoadClaudeMd,
       model,
+      thinkingLevel, // Pass thinking level for extended thinking
       outputFormat: {
         type: 'json_schema',
         schema: specOutputSchema,

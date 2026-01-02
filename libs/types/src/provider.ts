@@ -2,6 +2,8 @@
  * Shared types for AI model providers
  */
 
+import type { ThinkingLevel } from './settings.js';
+
 /**
  * Configuration for a provider instance
  */
@@ -84,6 +86,12 @@ export interface ExecuteOptions {
    * Default: false (allows edits)
    */
   readOnly?: boolean;
+  /**
+   * Extended thinking level for Claude models.
+   * Controls the amount of reasoning tokens allocated.
+   * Only applies to Claude models; Cursor models handle thinking internally.
+   */
+  thinkingLevel?: ThinkingLevel;
 }
 
 /**

@@ -19,7 +19,13 @@ import type { Options } from '@anthropic-ai/claude-agent-sdk';
 import os from 'os';
 import path from 'path';
 import { resolveModelString } from '@automaker/model-resolver';
-import { DEFAULT_MODELS, CLAUDE_MODEL_MAP, type McpServerConfig } from '@automaker/types';
+import {
+  DEFAULT_MODELS,
+  CLAUDE_MODEL_MAP,
+  type McpServerConfig,
+  type ThinkingLevel,
+  getThinkingTokenBudget,
+} from '@automaker/types';
 import { isPathAllowed, PathNotAllowedError, getAllowedRootDirectory } from '@automaker/platform';
 
 /**
@@ -318,6 +324,21 @@ function buildMcpOptions(config: CreateSdkOptionsConfig): McpPermissionOptions {
 }
 
 /**
+ * Build thinking options for SDK configuration.
+ * Converts ThinkingLevel to maxThinkingTokens for the Claude SDK.
+ *
+ * @param thinkingLevel - The thinking level to convert
+ * @returns Object with maxThinkingTokens if thinking is enabled
+ */
+function buildThinkingOptions(thinkingLevel?: ThinkingLevel): Partial<Options> {
+  const maxThinkingTokens = getThinkingTokenBudget(thinkingLevel);
+  console.log(
+    `[SDK-Options] buildThinkingOptions: thinkingLevel="${thinkingLevel}" -> maxThinkingTokens=${maxThinkingTokens}`
+  );
+  return maxThinkingTokens ? { maxThinkingTokens } : {};
+}
+
+/**
  * Build system prompt configuration based on autoLoadClaudeMd setting.
  * When autoLoadClaudeMd is true:
  * - Uses preset mode with 'claude_code' to enable CLAUDE.md auto-loading
@@ -409,6 +430,9 @@ export interface CreateSdkOptionsConfig {
 
   /** Allow unrestricted tools when MCP servers are enabled */
   mcpUnrestrictedTools?: boolean;
+
+  /** Extended thinking level for Claude models */
+  thinkingLevel?: ThinkingLevel;
 }
 
 // Re-export MCP types from @automaker/types for convenience
@@ -435,6 +459,9 @@ export function createSpecGenerationOptions(config: CreateSdkOptionsConfig): Opt
   // Build CLAUDE.md auto-loading options if enabled
   const claudeMdOptions = buildClaudeMdOptions(config);
 
+  // Build thinking options
+  const thinkingOptions = buildThinkingOptions(config.thinkingLevel);
+
   return {
     ...getBaseOptions(),
     // Override permissionMode - spec generation only needs read-only tools
@@ -446,6 +473,7 @@ export function createSpecGenerationOptions(config: CreateSdkOptionsConfig): Opt
     cwd: config.cwd,
     allowedTools: [...TOOL_PRESETS.specGeneration],
     ...claudeMdOptions,
+    ...thinkingOptions,
     ...(config.abortController && { abortController: config.abortController }),
     ...(config.outputFormat && { outputFormat: config.outputFormat }),
   };
@@ -467,6 +495,9 @@ export function createFeatureGenerationOptions(config: CreateSdkOptionsConfig): 
   // Build CLAUDE.md auto-loading options if enabled
   const claudeMdOptions = buildClaudeMdOptions(config);
 
+  // Build thinking options
+  const thinkingOptions = buildThinkingOptions(config.thinkingLevel);
+
   return {
     ...getBaseOptions(),
     // Override permissionMode - feature generation only needs read-only tools
@@ -476,6 +507,7 @@ export function createFeatureGenerationOptions(config: CreateSdkOptionsConfig): 
     cwd: config.cwd,
     allowedTools: [...TOOL_PRESETS.readOnly],
     ...claudeMdOptions,
+    ...thinkingOptions,
     ...(config.abortController && { abortController: config.abortController }),
   };
 }
@@ -496,6 +528,9 @@ export function createSuggestionsOptions(config: CreateSdkOptionsConfig): Option
   // Build CLAUDE.md auto-loading options if enabled
   const claudeMdOptions = buildClaudeMdOptions(config);
 
+  // Build thinking options
+  const thinkingOptions = buildThinkingOptions(config.thinkingLevel);
+
   return {
     ...getBaseOptions(),
     model: getModelForUseCase('suggestions', config.model),
@@ -503,6 +538,7 @@ export function createSuggestionsOptions(config: CreateSdkOptionsConfig): Option
     cwd: config.cwd,
     allowedTools: [...TOOL_PRESETS.readOnly],
     ...claudeMdOptions,
+    ...thinkingOptions,
     ...(config.abortController && { abortController: config.abortController }),
     ...(config.outputFormat && { outputFormat: config.outputFormat }),
   };
@@ -531,6 +567,9 @@ export function createChatOptions(config: CreateSdkOptionsConfig): Options {
   // Build MCP-related options
   const mcpOptions = buildMcpOptions(config);
 
+  // Build thinking options
+  const thinkingOptions = buildThinkingOptions(config.thinkingLevel);
+
   // Check sandbox compatibility (auto-disables for cloud storage paths)
   const sandboxCheck = checkSandboxCompatibility(config.cwd, config.enableSandboxMode);
 
@@ -550,6 +589,7 @@ export function createChatOptions(config: CreateSdkOptionsConfig): Options {
       },
     }),
     ...claudeMdOptions,
+    ...thinkingOptions,
     ...(config.abortController && { abortController: config.abortController }),
     ...mcpOptions.mcpServerOptions,
   };
@@ -575,6 +615,9 @@ export function createAutoModeOptions(config: CreateSdkOptionsConfig): Options {
   // Build MCP-related options
   const mcpOptions = buildMcpOptions(config);
 
+  // Build thinking options
+  const thinkingOptions = buildThinkingOptions(config.thinkingLevel);
+
   // Check sandbox compatibility (auto-disables for cloud storage paths)
   const sandboxCheck = checkSandboxCompatibility(config.cwd, config.enableSandboxMode);
 
@@ -594,6 +637,7 @@ export function createAutoModeOptions(config: CreateSdkOptionsConfig): Options {
       },
     }),
     ...claudeMdOptions,
+    ...thinkingOptions,
     ...(config.abortController && { abortController: config.abortController }),
     ...mcpOptions.mcpServerOptions,
   };
@@ -621,6 +665,9 @@ export function createCustomOptions(
   // Build MCP-related options
   const mcpOptions = buildMcpOptions(config);
 
+  // Build thinking options
+  const thinkingOptions = buildThinkingOptions(config.thinkingLevel);
+
   // For custom options: use explicit allowedTools if provided, otherwise use preset based on MCP settings
   const effectiveAllowedTools = config.allowedTools
     ? [...config.allowedTools]
@@ -638,6 +685,7 @@ export function createCustomOptions(
     // Apply MCP bypass options if configured
     ...mcpOptions.bypassOptions,
     ...claudeMdOptions,
+    ...thinkingOptions,
     ...(config.abortController && { abortController: config.abortController }),
     ...mcpOptions.mcpServerOptions,
   };

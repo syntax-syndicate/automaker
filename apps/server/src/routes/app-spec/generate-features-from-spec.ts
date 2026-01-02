@@ -10,7 +10,7 @@ import * as secureFs from '../../lib/secure-fs.js';
 import type { EventEmitter } from '../../lib/events.js';
 import { createLogger } from '@automaker/utils';
 import { DEFAULT_PHASE_MODELS, isCursorModel } from '@automaker/types';
-import { resolveModelString } from '@automaker/model-resolver';
+import { resolvePhaseModel } from '@automaker/model-resolver';
 import { createFeatureGenerationOptions } from '../../lib/sdk-options.js';
 import { ProviderFactory } from '../../providers/provider-factory.js';
 import { logAuthStatus } from './common.js';
@@ -109,9 +109,9 @@ IMPORTANT: Do not ask for clarification. The specification is provided above. Ge
 
   // Get model from phase settings
   const settings = await settingsService?.getGlobalSettings();
-  const featureGenerationModel =
+  const phaseModelEntry =
     settings?.phaseModels?.featureGenerationModel || DEFAULT_PHASE_MODELS.featureGenerationModel;
-  const model = resolveModelString(featureGenerationModel);
+  const { model, thinkingLevel } = resolvePhaseModel(phaseModelEntry);
 
   logger.info('Using model:', model);
 
@@ -172,6 +172,7 @@ CRITICAL INSTRUCTIONS:
       abortController,
       autoLoadClaudeMd,
       model,
+      thinkingLevel, // Pass thinking level for extended thinking
     });
 
     logger.debug('SDK Options:', JSON.stringify(options, null, 2));

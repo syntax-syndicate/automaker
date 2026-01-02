@@ -1,16 +1,27 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/app-store';
-import type { ModelAlias, CursorModelId, GroupedModel } from '@automaker/types';
+import type {
+  ModelAlias,
+  CursorModelId,
+  GroupedModel,
+  PhaseModelEntry,
+  ThinkingLevel,
+} from '@automaker/types';
 import {
   stripProviderPrefix,
-  CURSOR_MODEL_GROUPS,
   STANDALONE_CURSOR_MODELS,
   getModelGroup,
   isGroupSelected,
   getSelectedVariant,
+  isCursorModel,
 } from '@automaker/types';
-import { CLAUDE_MODELS, CURSOR_MODELS } from '@/components/views/board-view/shared/model-constants';
+import {
+  CLAUDE_MODELS,
+  CURSOR_MODELS,
+  THINKING_LEVELS,
+  THINKING_LEVEL_LABELS,
+} from '@/components/views/board-view/shared/model-constants';
 import { Check, ChevronsUpDown, Star, Brain, Sparkles, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,8 +38,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 interface PhaseModelSelectorProps {
   label: string;
   description: string;
-  value: ModelAlias | CursorModelId;
-  onChange: (model: ModelAlias | CursorModelId) => void;
+  value: PhaseModelEntry;
+  onChange: (entry: PhaseModelEntry) => void;
 }
 
 export function PhaseModelSelector({
@@ -39,9 +50,15 @@ export function PhaseModelSelector({
 }: PhaseModelSelectorProps) {
   const [open, setOpen] = React.useState(false);
   const [expandedGroup, setExpandedGroup] = React.useState<string | null>(null);
+  const [expandedClaudeModel, setExpandedClaudeModel] = React.useState<ModelAlias | null>(null);
   const commandListRef = React.useRef<HTMLDivElement>(null);
   const expandedTriggerRef = React.useRef<HTMLDivElement>(null);
+  const expandedClaudeTriggerRef = React.useRef<HTMLDivElement>(null);
   const { enabledCursorModels, favoriteModels, toggleFavoriteModel } = useAppStore();
+
+  // Extract model and thinking level from value
+  const selectedModel = value.model;
+  const selectedThinkingLevel = value.thinkingLevel || 'none';
 
   // Close expanded group when trigger scrolls out of view
   React.useEffect(() => {
@@ -66,6 +83,29 @@ export function PhaseModelSelector({
     return () => observer.disconnect();
   }, [expandedGroup]);
 
+  // Close expanded Claude model popover when trigger scrolls out of view
+  React.useEffect(() => {
+    const triggerElement = expandedClaudeTriggerRef.current;
+    const listElement = commandListRef.current;
+    if (!triggerElement || !listElement || !expandedClaudeModel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry.isIntersecting) {
+          setExpandedClaudeModel(null);
+        }
+      },
+      {
+        root: listElement,
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(triggerElement);
+    return () => observer.disconnect();
+  }, [expandedClaudeModel]);
+
   // Filter Cursor models to only show enabled ones
   const availableCursorModels = CURSOR_MODELS.filter((model) => {
     const cursorId = stripProviderPrefix(model.id) as CursorModelId;
@@ -74,18 +114,31 @@ export function PhaseModelSelector({
 
   // Helper to find current selected model details
   const currentModel = React.useMemo(() => {
-    const claudeModel = CLAUDE_MODELS.find((m) => m.id === value);
-    if (claudeModel) return { ...claudeModel, icon: Brain };
+    const claudeModel = CLAUDE_MODELS.find((m) => m.id === selectedModel);
+    if (claudeModel) {
+      // Add thinking level to label if not 'none'
+      const thinkingLabel =
+        selectedThinkingLevel !== 'none'
+          ? ` (${THINKING_LEVEL_LABELS[selectedThinkingLevel]} Thinking)`
+          : '';
+      return {
+        ...claudeModel,
+        label: `${claudeModel.label}${thinkingLabel}`,
+        icon: Brain,
+      };
+    }
 
-    const cursorModel = availableCursorModels.find((m) => stripProviderPrefix(m.id) === value);
+    const cursorModel = availableCursorModels.find(
+      (m) => stripProviderPrefix(m.id) === selectedModel
+    );
     if (cursorModel) return { ...cursorModel, icon: Sparkles };
 
-    // Check if value is part of a grouped model
-    const group = getModelGroup(value as CursorModelId);
+    // Check if selectedModel is part of a grouped model
+    const group = getModelGroup(selectedModel as CursorModelId);
     if (group) {
-      const variant = getSelectedVariant(group, value as CursorModelId);
+      const variant = getSelectedVariant(group, selectedModel as CursorModelId);
       return {
-        id: value,
+        id: selectedModel,
         label: `${group.label} (${variant?.label || 'Unknown'})`,
         description: group.description,
         provider: 'cursor' as const,
@@ -94,7 +147,7 @@ export function PhaseModelSelector({
     }
 
     return null;
-  }, [value, availableCursorModels]);
+  }, [selectedModel, selectedThinkingLevel, availableCursorModels]);
 
   // Compute grouped vs standalone Cursor models
   const { groupedModels, standaloneCursorModels } = React.useMemo(() => {
@@ -156,26 +209,24 @@ export function PhaseModelSelector({
     return { favorites: favs, claude: cModels, cursor: curModels };
   }, [favoriteModels, availableCursorModels]);
 
-  const renderModelItem = (model: (typeof CLAUDE_MODELS)[0], type: 'claude' | 'cursor') => {
-    const isClaude = type === 'claude';
-    // For Claude, value is model.id. For Cursor, it's stripped ID.
-    const modelValue = isClaude ? model.id : stripProviderPrefix(model.id);
-    const isSelected = value === modelValue;
+  // Render Cursor model item (no thinking level needed)
+  const renderCursorModelItem = (model: (typeof CURSOR_MODELS)[0]) => {
+    const modelValue = stripProviderPrefix(model.id);
+    const isSelected = selectedModel === modelValue;
     const isFavorite = favoriteModels.includes(model.id);
-    const Icon = isClaude ? Brain : Sparkles;
 
     return (
       <CommandItem
         key={model.id}
         value={model.label}
         onSelect={() => {
-          onChange(modelValue as ModelAlias | CursorModelId);
+          onChange({ model: modelValue as CursorModelId });
           setOpen(false);
         }}
         className="group flex items-center justify-between py-2"
       >
         <div className="flex items-center gap-3 overflow-hidden">
-          <Icon
+          <Sparkles
             className={cn(
               'h-4 w-4 shrink-0',
               isSelected ? 'text-primary' : 'text-muted-foreground'
@@ -212,10 +263,138 @@ export function PhaseModelSelector({
     );
   };
 
+  // Render Claude model item with secondary popover for thinking level
+  const renderClaudeModelItem = (model: (typeof CLAUDE_MODELS)[0]) => {
+    const isSelected = selectedModel === model.id;
+    const isFavorite = favoriteModels.includes(model.id);
+    const isExpanded = expandedClaudeModel === model.id;
+    const currentThinking = isSelected ? selectedThinkingLevel : 'none';
+
+    return (
+      <CommandItem
+        key={model.id}
+        value={model.label}
+        onSelect={() => setExpandedClaudeModel(isExpanded ? null : (model.id as ModelAlias))}
+        className="p-0 data-[selected=true]:bg-transparent"
+      >
+        <Popover
+          open={isExpanded}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              setExpandedClaudeModel(null);
+            }
+          }}
+        >
+          <PopoverTrigger asChild>
+            <div
+              ref={isExpanded ? expandedClaudeTriggerRef : undefined}
+              className={cn(
+                'w-full group flex items-center justify-between py-2 px-2 rounded-sm cursor-pointer',
+                'hover:bg-accent',
+                isExpanded && 'bg-accent'
+              )}
+            >
+              <div className="flex items-center gap-3 overflow-hidden">
+                <Brain
+                  className={cn(
+                    'h-4 w-4 shrink-0',
+                    isSelected ? 'text-primary' : 'text-muted-foreground'
+                  )}
+                />
+                <div className="flex flex-col truncate">
+                  <span className={cn('truncate font-medium', isSelected && 'text-primary')}>
+                    {model.label}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {isSelected && currentThinking !== 'none'
+                      ? `Thinking: ${THINKING_LEVEL_LABELS[currentThinking]}`
+                      : model.description}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 ml-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    'h-6 w-6 hover:bg-transparent hover:text-yellow-500 focus:ring-0',
+                    isFavorite
+                      ? 'text-yellow-500 opacity-100'
+                      : 'opacity-0 group-hover:opacity-100 text-muted-foreground'
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavoriteModel(model.id);
+                  }}
+                >
+                  <Star className={cn('h-3.5 w-3.5', isFavorite && 'fill-current')} />
+                </Button>
+                {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
+                <ChevronRight
+                  className={cn(
+                    'h-4 w-4 text-muted-foreground transition-transform',
+                    isExpanded && 'rotate-90'
+                  )}
+                />
+              </div>
+            </div>
+          </PopoverTrigger>
+          <PopoverContent
+            side="right"
+            align="center"
+            avoidCollisions={false}
+            className="w-[220px] p-1"
+            sideOffset={8}
+            onCloseAutoFocus={(e) => e.preventDefault()}
+          >
+            <div className="space-y-1">
+              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-b border-border/50 mb-1">
+                Thinking Level
+              </div>
+              {THINKING_LEVELS.map((level) => (
+                <button
+                  key={level}
+                  onClick={() => {
+                    onChange({
+                      model: model.id as ModelAlias,
+                      thinkingLevel: level,
+                    });
+                    setExpandedClaudeModel(null);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    'w-full flex items-center justify-between px-2 py-2 rounded-sm text-sm',
+                    'hover:bg-accent cursor-pointer transition-colors',
+                    isSelected && currentThinking === level && 'bg-accent text-accent-foreground'
+                  )}
+                >
+                  <div className="flex flex-col items-start">
+                    <span className="font-medium">{THINKING_LEVEL_LABELS[level]}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {level === 'none' && 'No extended thinking'}
+                      {level === 'low' && 'Light reasoning (1k tokens)'}
+                      {level === 'medium' && 'Moderate reasoning (10k tokens)'}
+                      {level === 'high' && 'Deep reasoning (16k tokens)'}
+                      {level === 'ultrathink' && 'Maximum reasoning (32k tokens)'}
+                    </span>
+                  </div>
+                  {isSelected && currentThinking === level && (
+                    <Check className="h-3.5 w-3.5 text-primary" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      </CommandItem>
+    );
+  };
+
   // Render a grouped model with secondary popover for variant selection
   const renderGroupedModelItem = (group: GroupedModel) => {
-    const groupIsSelected = isGroupSelected(group, value as CursorModelId);
-    const selectedVariant = getSelectedVariant(group, value as CursorModelId);
+    const groupIsSelected = isGroupSelected(group, selectedModel as CursorModelId);
+    const selectedVariant = getSelectedVariant(group, selectedModel as CursorModelId);
     const isExpanded = expandedGroup === group.baseId;
 
     const variantTypeLabel =
@@ -293,14 +472,14 @@ export function PhaseModelSelector({
                 <button
                   key={variant.id}
                   onClick={() => {
-                    onChange(variant.id);
+                    onChange({ model: variant.id });
                     setExpandedGroup(null);
                     setOpen(false);
                   }}
                   className={cn(
                     'w-full flex items-center justify-between px-2 py-2 rounded-sm text-sm',
                     'hover:bg-accent cursor-pointer transition-colors',
-                    value === variant.id && 'bg-accent text-accent-foreground'
+                    selectedModel === variant.id && 'bg-accent text-accent-foreground'
                   )}
                 >
                   <div className="flex flex-col items-start">
@@ -315,7 +494,7 @@ export function PhaseModelSelector({
                         {variant.badge}
                       </span>
                     )}
-                    {value === variant.id && <Check className="h-3.5 w-3.5 text-primary" />}
+                    {selectedModel === variant.id && <Check className="h-3.5 w-3.5 text-primary" />}
                   </div>
                 </button>
               ))}
@@ -388,11 +567,11 @@ export function PhaseModelSelector({
                               return renderGroupedModelItem(filteredGroup);
                             }
                           }
+                          // Standalone Cursor model
+                          return renderCursorModelItem(model);
                         }
-                        return renderModelItem(
-                          model,
-                          model.provider === 'claude' ? 'claude' : 'cursor'
-                        );
+                        // Claude model
+                        return renderClaudeModelItem(model);
                       });
                     })()}
                   </CommandGroup>
@@ -402,7 +581,7 @@ export function PhaseModelSelector({
 
               {claude.length > 0 && (
                 <CommandGroup heading="Claude Models">
-                  {claude.map((model) => renderModelItem(model, 'claude'))}
+                  {claude.map((model) => renderClaudeModelItem(model))}
                 </CommandGroup>
               )}
 
@@ -411,7 +590,7 @@ export function PhaseModelSelector({
                   {/* Grouped models with secondary popover */}
                   {groupedModels.map((group) => renderGroupedModelItem(group))}
                   {/* Standalone models */}
-                  {standaloneCursorModels.map((model) => renderModelItem(model, 'cursor'))}
+                  {standaloneCursorModels.map((model) => renderCursorModelItem(model))}
                 </CommandGroup>
               )}
             </CommandList>
